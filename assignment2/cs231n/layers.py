@@ -13,7 +13,7 @@ def affine_forward(x, w, b):
   Inputs:
   - x: A numpy array containing input data, of shape (N, d_1, ..., d_k)
   - w: A numpy array of weights, of shape (D, M)
-  - b: A numpy array of biases, of shape (M,)
+  - b: A numpy array of biases, of shape  ,(M,)
   
   Returns a tuple of:
   - out: output, of shape (N, M)
@@ -146,7 +146,7 @@ def batchnorm_forward(x, gamma, beta, bn_param):
     - eps: Constant for numeric stability
     - momentum: Constant for running mean / variance.
     - running_mean: Array of shape (D,) giving running mean of features
-    - running_var Array of shape (D,) giving running variance of features
+    - running_var: Array of shape (D,) giving running variance of features
 
   Returns a tuple of:
   - out: of shape (N, D)
@@ -160,6 +160,7 @@ def batchnorm_forward(x, gamma, beta, bn_param):
   running_mean = bn_param.get('running_mean', np.zeros(D, dtype=x.dtype))
   running_var = bn_param.get('running_var', np.zeros(D, dtype=x.dtype))
 
+  #print(x.shape)
   out, cache = None, None
   if mode == 'train':
     #############################################################################
@@ -175,7 +176,18 @@ def batchnorm_forward(x, gamma, beta, bn_param):
     # the momentum variable to update the running mean and running variance,    #
     # storing your result in the running_mean and running_var variables.        #
     #############################################################################
-    pass
+    sample_mean = np.mean(x, axis = 0)
+    sample_var  = np.var(x,  axis = 0)
+    #print(sample_var.shape)
+    est_x = (x - sample_mean) / np.sqrt(sample_var + eps)
+    out   = gamma * est_x + beta
+    
+    running_mean = momentum * running_mean + (1 - momentum) * sample_mean
+    running_var  = momentum * running_var  + (1 - momentum) * sample_mean
+    #print(running_mean)
+    cache = (x, sample_mean, sample_var, gamma, beta)
+    # Store the updated running means back into bn_param
+    
     #############################################################################
     #                             END OF YOUR CODE                              #
     #############################################################################
@@ -186,17 +198,19 @@ def batchnorm_forward(x, gamma, beta, bn_param):
     # and shift the normalized data using gamma and beta. Store the result in   #
     # the out variable.                                                         #
     #############################################################################
-    pass
+    #print('输出running_mean\n', running_mean)
+    #print('输出running_var \n', running_var)
+    est_x = (x - running_mean) / np.sqrt(running_var + eps)
+    out   = gamma * est_x + beta
     #############################################################################
     #                             END OF YOUR CODE                              #
     #############################################################################
   else:
     raise ValueError('Invalid forward batchnorm mode "%s"' % mode)
 
-  # Store the updated running means back into bn_param
   bn_param['running_mean'] = running_mean
-  bn_param['running_var'] = running_var
-
+  bn_param['running_var']  = running_var
+  
   return out, cache
 
 
