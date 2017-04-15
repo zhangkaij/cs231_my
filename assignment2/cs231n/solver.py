@@ -165,6 +165,8 @@ class Solver(object):
     loss, grads = self.model.loss(X_batch, y_batch)
     self.loss_history.append(loss)
 
+    #print('params key: ', self.model.params.keys())
+    #print('grads key: ', grads.keys())
     # Perform a parameter update
     for p, w in self.model.params.items():
       dw = grads[p]

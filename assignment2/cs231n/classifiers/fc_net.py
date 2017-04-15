@@ -155,7 +155,7 @@ class FullyConnectedNet(object):
   def __init__(self, hidden_dims, input_dim=3*32*32, num_classes=10,
                dropout=0, use_batchnorm=False, reg=0.0,
                weight_scale=1e-2, dtype=np.float32, seed=None):
-    """
+    """############################################################################
     Initialize a new FullyConnectedNet.
     
     Inputs:
@@ -196,10 +196,19 @@ class FullyConnectedNet(object):
     ############################################################################
 
     dim_left = input_dim
-    for i in range(len(hidden_dims)):
+    for i in range(self.num_layers - 1):
         dim_right = hidden_dims[i]
-        self.params['W' + str(i + 1)] = weight_scale * np.random.randn(dim_left, dim_right)
-        self.params['b' + str(i + 1)] = np.zeros(dim_right)
+        key_w = 'W' + str(i + 1)
+        key_b = 'b' + str(i + 1)        
+        self.params[key_w] = weight_scale * np.random.randn(dim_left, dim_right)
+        self.params[key_b] = np.zeros(dim_right)
+        
+        if self.use_batchnorm:
+            key_gamma = 'gamma' + str(i + 1)
+            key_beta  = 'beta'  + str(i + 1)
+            self.params[key_gamma] = np.ones(dim_right)
+            self.params[key_beta]  = np.zeros(dim_right)
+            
         dim_left = dim_right
     
     self.params['W' + str(i + 2)] = weight_scale * np.random.randn(dim_left, num_classes)
@@ -225,7 +234,7 @@ class FullyConnectedNet(object):
     # pass of the second batch normalization layer, etc.
     self.bn_params = []
     if self.use_batchnorm:
-      self.bn_params = [{'mode': 'train'} for i in xrange(self.num_layers - 1)]
+      self.bn_params = [{'mode': 'train'} for i in range(self.num_layers - 1)]
     
     # Cast all parameters to the correct datatype
     for k, v in self.params.items():
@@ -247,7 +256,7 @@ class FullyConnectedNet(object):
       self.dropout_param['mode'] = mode   
     if self.use_batchnorm:
       for bn_param in self.bn_params:
-        bn_param[mode] = mode
+        bn_param['mode'] = mode
 
     scores = None
     ############################################################################
@@ -266,23 +275,34 @@ class FullyConnectedNet(object):
     result     = {}
     out        = None
     cache      = None
-    num_layer  = int(len(self.params) / 2)
-    
-    for i in range(num_layer - 1):
+        
+    for i in range(self.num_layers - 1):
         key_w = 'W' + str(i + 1)
         key_b = 'b' + str(i + 1)
         w = self.params[key_w]
         b = self.params[key_b]
         
         #rint('一次执行', input.shape, w.shape, b.shape)
+        if self.use_batchnorm:
+            #print('使用了batch norm0')
+            key_gamma = 'gamma' + str(i + 1)
+            key_beta  = 'beta'  + str(i + 1)
+            gamma = self.params[key_gamma]
+            beta  = self.params[key_beta]
+            out, cache = affine_batchnorm_relu_forward(input, w, b, gamma, beta, self.bn_params[i])
+        else:
+            out, cache = affine_relu_forward(input, w, b)
         
-        out, cache = affine_relu_forward(input, w, b)
+        if self.use_dropout:
+            out, dropout_cache = dropout_forward(out, self.dropout_param)
+            cache = (cache, dropout_cache)
+            
         result[(key_w, key_b)] = (out, cache)
         input = out
          
     scores, scores_cache = affine_forward(out, 
-                                          self.params['W' + str(num_layer)],
-                                          self.params['b' + str(num_layer)])                 
+                                          self.params['W' + str(self.num_layers)],
+                                          self.params['b' + str(self.num_layers)])                 
     
     ############################################################################
     #                             END OF YOUR CODE                             #
@@ -314,7 +334,7 @@ class FullyConnectedNet(object):
     correct_logprobs = -np.log(probs[range(num_train), y])
     data_loss = np.sum(correct_logprobs) / num_train
     reg_loss  = 0.0
-    for i in range(num_layer):
+    for i in range(self.num_layers):
         key_w = 'W' + str(i + 1)
         reg_loss += 0.5 * self.reg * np.sum(self.params[key_w] * self.params[key_w])
     
@@ -327,17 +347,31 @@ class FullyConnectedNet(object):
     dscores /= num_train
     
     dout_next, dw_last, db_last = affine_backward(dscores, scores_cache)
-    key_w = 'W' + str(num_layer)
-    key_b = 'b' + str(num_layer)
-    grads[key_w] = dw_last
+    key_w = 'W' + str(self.num_layers)
+    key_b = 'b' + str(self.num_layers)
+    grads[key_w] = dw_last + self.reg * self.params[key_w]
     grads[key_b] = db_last
     
-    for i in range(num_layer - 1)[::-1]:
+    for i in range(self.num_layers - 1)[::-1]:
         key_w = 'W' + str(i + 1)
         key_b = 'b' + str(i + 1)
         
         _, cache = result[(key_w, key_b)] 
-        dout_cur, dw, db = affine_relu_backward(dout_next, cache)
+        if self.use_dropout:
+            cache, dropout_cache = cache
+            dout_next = dropout_backward(dout_next, dropout_cache)
+            
+        if self.use_batchnorm:
+            #print('使用了batch norm1')
+            dout_cur, dw, db, dgamma, dbeta = affine_batchnorm_relu_backward(dout_next, cache)
+            
+            key_gamma        = 'gamma' + str(i + 1)
+            key_beta         = 'beta'  + str(i + 1)
+            grads[key_gamma] = dgamma
+            grads[key_beta]  = dbeta
+        else:
+            dout_cur, dw, db = affine_relu_backward(dout_next, cache)
+            
         dw += self.reg * self.params[key_w]
         
         grads[key_w] = dw
@@ -347,5 +381,5 @@ class FullyConnectedNet(object):
     ############################################################################
     #                             END OF YOUR CODE                             #
     ############################################################################
-
+    
     return loss, grads
