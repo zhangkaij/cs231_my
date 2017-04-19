@@ -25,11 +25,13 @@ def conv_forward_im2col(x, w, b, conv_param):
 
   # Create output
   out_height = (H + 2 * pad - filter_height) / stride + 1
+  out_height = int(out_height)
   out_width = (W + 2 * pad - filter_width) / stride + 1
+  out_width = int(out_width)
   out = np.zeros((N, num_filters, out_height, out_width), dtype=x.dtype)
 
-  # x_cols = im2col_indices(x, w.shape[2], w.shape[3], pad, stride)
-  x_cols = im2col_cython(x, w.shape[2], w.shape[3], pad, stride)
+  x_cols = im2col_indices(x, w.shape[2], w.shape[3], pad, stride)
+  # x_cols = im2col_cython(x, w.shape[2], w.shape[3], pad, stride)
   res = w.reshape((w.shape[0], -1)).dot(x_cols) + b.reshape(-1, 1)
 
   out = res.reshape(w.shape[0], out.shape[2], out.shape[3], x.shape[0])
@@ -50,13 +52,14 @@ def conv_forward_strides(x, w, b, conv_param):
 
   # Pad the input
   p = pad
+  #print('p: ', p, 'x: ', x.shape)
   x_padded = np.pad(x, ((0, 0), (0, 0), (p, p), (p, p)), mode='constant')
   
   # Figure out output dimensions
   H += 2 * pad
   W += 2 * pad
-  out_h = (H - HH) / stride + 1
-  out_w = (W - WW) / stride + 1
+  out_h = int((H - HH) / stride) + 1
+  out_w = int((W - WW) / stride) + 1
 
   # Perform an im2col operation by picking clever strides
   shape = (C, HH, WW, N, out_h, out_w)
@@ -182,8 +185,8 @@ def max_pool_forward_reshape(x, pool_param):
   assert pool_height == pool_width == stride, 'Invalid pool params'
   assert H % pool_height == 0
   assert W % pool_height == 0
-  x_reshaped = x.reshape(N, C, H / pool_height, pool_height,
-                         W / pool_width, pool_width)
+  x_reshaped = x.reshape(N, C, int(H / pool_height), pool_height,
+                         int(W / pool_width), pool_width)
   out = x_reshaped.max(axis=3).max(axis=4)
 
   cache = (x, x_reshaped, out)

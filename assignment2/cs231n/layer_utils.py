@@ -64,7 +64,13 @@ def conv_relu_forward(x, w, b, conv_param):
   cache = (conv_cache, relu_cache)
   return out, cache
 
-
+def conv_batchnorm_relu_forward():
+    conv_out, conv_cache = conv_forward_fast(x, w, b, conv_param)
+    batchnorm_out, batchnorm_cache = batchnorm_forward(conv_out, gamma, beta, bn_param)
+    relu_out, relu_cache = relu_forward(batchnorm_out)
+    
+    cache = (conv_cache, batchnorm_cache, relu_cache)
+    return relu_out, cache
 def conv_relu_backward(dout, cache):
   """
   Backward pass for the conv-relu convenience layer.
@@ -89,11 +95,21 @@ def conv_relu_pool_forward(x, w, b, conv_param, pool_param):
   - cache: Object to give to the backward pass
   """
   a, conv_cache = conv_forward_fast(x, w, b, conv_param)
+  #print('the shape of conv_forward_fast_out', a.shape)
   s, relu_cache = relu_forward(a)
   out, pool_cache = max_pool_forward_fast(s, pool_param)
   cache = (conv_cache, relu_cache, pool_cache)
   return out, cache
 
+def conv_relu_conv_relu_pool_forward(x, W1, b1, W2, b2, conv_param, pool_param):
+    #print('the shape of x:', x.shape, 'the shape of w1: ', W1.shape, 'w2: ', W2.shape)
+    out_first, cache_first = conv_relu_forward(x, W1, b1, conv_param)
+    #print('out: ', out_first.shape)
+    out_second, cache_second = conv_relu_forward(out_first, W2, b2, conv_param)
+    out, pool_cache = max_pool_forward_fast(out_second, pool_param)
+    
+    cache = (cache_first, cache_second, pool_cache)
+    return out, cache
 
 def conv_relu_pool_backward(dout, cache):
   """
@@ -104,4 +120,12 @@ def conv_relu_pool_backward(dout, cache):
   da = relu_backward(ds, relu_cache)
   dx, dw, db = conv_backward_fast(da, conv_cache)
   return dx, dw, db
+
+def conv_relu_conv_relu_pool_backward(dout, cache):
+    cache_first, cache_second, cache_pool = cache
+    dout_pool = max_pool_backward_fast(dout, cache_pool)
+    dout_second, dw2, db2 = conv_relu_backward(dout_pool, cache_second)
+    dout, dw1, db1 = conv_relu_backward(dout_second, cache_first)
+    
+    return dout, dw1, db1, dw2, db2
 

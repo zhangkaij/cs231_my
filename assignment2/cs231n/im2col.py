@@ -7,8 +7,10 @@ def get_im2col_indices(x_shape, field_height, field_width, padding=1, stride=1):
   assert (H + 2 * padding - field_height) % stride == 0
   assert (W + 2 * padding - field_height) % stride == 0
   out_height = (H + 2 * padding - field_height) / stride + 1
+  out_height = int(out_height)
   out_width = (W + 2 * padding - field_width) / stride + 1
-
+  out_width = int(out_width)
+    
   i0 = np.repeat(np.arange(field_height), field_width)
   i0 = np.tile(i0, C)
   i1 = stride * np.repeat(np.arange(out_height), out_width)
@@ -30,10 +32,12 @@ def im2col_indices(x, field_height, field_width, padding=1, stride=1):
 
   k, i, j = get_im2col_indices(x.shape, field_height, field_width, padding,
                                stride)
-
+  #print('the shape of x_padded: ', x_padded.shape)
   cols = x_padded[:, k, i, j]
+  #print('the shape of cols: ', cols.shape)
   C = x.shape[1]
   cols = cols.transpose(1, 2, 0).reshape(field_height * field_width * C, -1)
+  #print('the shape of result: ', cols.shape)
   return cols
 
 
